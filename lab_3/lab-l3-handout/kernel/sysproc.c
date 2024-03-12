@@ -117,10 +117,38 @@ uint64 sys_schedset(void)
     return 0;
 }
 
+extern struct proc proc[];
+
 uint64 sys_va2pa(void)
 {
-    printf("TODO: IMPLEMENT ME [%s@%s (line %d)]", __func__, __FILE__, __LINE__);
-    return 0;
+    uint64 virtual_address;
+    int process_id;
+
+    argaddr(0, &virtual_address);
+    argint(1, &process_id);
+    
+    pagetable_t pagetable;
+
+    if (process_id < 0) {
+        pagetable = myproc()->pagetable;
+    }
+    else {
+        struct proc *p;
+        int found = 0;
+        for (p = proc; p < &proc[NPROC]; p++) {
+            if (p->pid == process_id) {
+                found = 1;
+                pagetable = p->pagetable;
+                break;
+            }
+        }
+        // If found is 0, then the user has provided a non-existing pid
+        if (found == 0) {
+            return 0;
+        }
+    }
+    uint64 physical_address = walkaddr(pagetable, virtual_address);
+    return physical_address;
 }
 
 uint64 sys_pfreepages(void)
