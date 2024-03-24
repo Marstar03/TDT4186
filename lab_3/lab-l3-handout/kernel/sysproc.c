@@ -129,7 +129,7 @@ uint64 sys_va2pa(void)
     
     pagetable_t pagetable;
 
-    if (process_id < 0) {
+    if (process_id <= 0) {
         pagetable = myproc()->pagetable;
     }
     else {

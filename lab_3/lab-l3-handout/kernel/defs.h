@@ -200,3 +200,10 @@ void virtio_disk_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x) / sizeof((x)[0]))
+
+
+// Added declaration so that the functions can
+// be used in vm.c
+void increment_page_count(uint64 physical_address);
+
+void decrement_page_count(uint64 physical_address);

@@ -33,7 +33,7 @@ trapinithart(void)
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
 //
-void
+void // Kanskje bytt ut med int
 usertrap(void)
 {
   int which_dev = 0;
@@ -50,7 +50,68 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
-  if(r_scause() == 8){
+  // Added
+  if (r_scause() == 15) {
+    uint64 virtual_address = r_stval();
+
+
+    /* if (virtual_address >= MAXVA || (virtual_address < p->trapframe->sp && virtual_address >= (p->trapframe->sp - PGSIZE))) {
+      setkilled(p);
+      exit(-1);
+    } */
+
+    pte_t *pte = walk(p->pagetable, virtual_address, 0);
+
+    if (pte && (*pte & PTE_C)) {
+      // Copy page to process
+      // Using same code as old uvmcopy implementation
+      pagetable_t pt = p->pagetable;
+      uint64 physical_address = PTE2PA(*pte);
+      char *mem;
+
+      uint flags;
+      flags = PTE_FLAGS(*pte);
+      flags = flags & ~PTE_C;
+      flags = flags | PTE_W;
+      /* uint flags = PTE_FLAGS(*pte) & ~PTE_C; // Burde jeg fjerne PTE_C her?
+      flags |= PTE_W; */
+
+      if((mem = kalloc()) == 0) {
+        uvmunmap(pt, 0, 1, 1);
+        exit(-1); // Kanskje bytt ut med return -1
+      }
+
+      //increment_page_count((uint64)mem);
+      
+      memmove(mem, (char*)physical_address, PGSIZE);
+
+      // Må unmappe den gamle page-en
+      uvmunmap(pt, PGROUNDDOWN(virtual_address), 1, 1); // Burde jeg ha round up eller round down?
+
+      //printf("Mappages virtuell adresse usertrap: %d\n", virtual_address);
+      if(mappages(pt, PGROUNDDOWN(virtual_address), PGSIZE, (uint64)mem, flags) != 0){
+        kfree(mem);
+        //uvmunmap(pt, PGROUNDDOWN(virtual_address), 1, 1);
+        
+        exit(-1); // Kanskje bytt ut med return -1
+        // Eller burde jeg ha goto err som i gamle uvmcopy?
+      }
+
+      // funksjonskall for å dekrementere counten til den gamle page-en
+      // utføres kun dersom mappingen var vellykket
+
+      //decrement_page_count(physical_address);
+
+    } else {
+      // Kommer hit dersom read only page-en man prøvde å skrive til 
+      // ikke var en copy-on-write page
+
+      // kill process and print segfault
+      printf("Segmentation fault (pid=%d)\n", p->pid);
+      setkilled(p);
+      exit(-1); // Kanskje bytt ut med return -1
+    }
+  } else if(r_scause() == 8){
     // system call
 
     if(killed(p))
@@ -65,6 +126,11 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if(r_scause() == 13){
+    printf("Feil. feil 13!!!\n");
+    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+    setkilled(p);
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
@@ -82,6 +148,11 @@ usertrap(void)
 
   usertrapret();
 }
+
+
+/* int cowalloc(pagetable_t pagetable, uint64 virtual_address) {
+  return 0;
+} */
 
 //
 // return to user space
@@ -145,6 +216,8 @@ kerneltrap()
     panic("kerneltrap: interrupts enabled");
 
   if((which_dev = devintr()) == 0){
+
+    printf("Failed badly...\n");
     printf("scause %p\n", scause);
     printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
     panic("kerneltrap");

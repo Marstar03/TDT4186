@@ -129,8 +129,8 @@ def test8():
         match_fn=lambda matches: (int(matches[0]) - 1 == int(matches[1])),
     )
     r.match(
-        "^\[chld\] global_array[0] --> (\d+)$",
-        "^\[prnt\] global_array[0] --> (\d+)$",
+        "^\[chld\] global_array\[0\] --> (\d+)$",
+        "^\[prnt\] global_array\[0\] --> (\d+)$",
         match_fn=lambda matches: (int(matches[0], base=10) != int(matches[1], base=10)),
     )
     r.match(

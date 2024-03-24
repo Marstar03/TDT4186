@@ -142,6 +142,7 @@ kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm)
 int
 mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 {
+  // printf("Mappages fysisk adresse mappages funksjon: %d\n", pa);
   uint64 a, last;
   pte_t *pte;
 
@@ -153,8 +154,10 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
+    if(*pte & PTE_V) {
+      //printf("Mappages virtuell adresse mappages funksjon: %d\n", va);
       panic("mappages: remap");
+    }
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -170,6 +173,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 void
 uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 {
+  
   uint64 a;
   pte_t *pte;
 
@@ -308,27 +312,58 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  //char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-      
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    // Added so that the pte write flag is disabled
+    // This disables possibility to write to the page
+    flags = flags & ~PTE_W;
+
+    // This sets the PTE_C flag to true, so that i can know if
+    // the page is created by vfork or not
+    flags = flags | PTE_C;
+
+
+    /* if (flags & PTE_W) {
+      flags = (flags | PTE_C) & (~PTE_W);
+      *pte = (*pte & ~PTE_W) | PTE_C;
+    } */
+    /* if((mem = kalloc()) == 0)
+      goto err; */
+
+    // memmove(mem, (char*)pa, PGSIZE);
+    // printf("Mappages fysisk adresse uvmcopy: %d\n", pa);
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
+      //kfree(mem);
       goto err;
     }
+
+    increment_page_count(pa);
+
+    //Unmap and map old pagetable (didnt work)
+    uvmunmap(old, i, 1, 0);
+    //mappages(old, i, PGSIZE, pa, flags);
+    if(mappages(old, i, PGSIZE, pa, flags) != 0){
+      //kfree(mem);
+      goto err;
+    }
+
+    // Funksjonskall for å inkrementere counten til
+    // den fysiske page-en til parent
+    // printf("Fysisk adresse til page: %d\n", pa);
+
   }
   return 0;
 
  err:
+  printf("%d", pa);
   uvmunmap(new, 0, i / PGSIZE, 1);
   return -1;
 }
@@ -356,6 +391,56 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+
+    // Added
+    // ---------------------
+
+    //cowalloc(pagetable, va0);
+    /* pte_t *pte = walk(pagetable, va0, 0);
+
+    if (pte && (*pte & PTE_C)) {
+      // Copy page to process
+      // Using same code as old uvmcopy implementation
+      uint64 physical_address = PTE2PA(*pte);
+      char *mem;
+
+      uint flags;
+      flags = PTE_FLAGS(*pte);
+      flags = flags & ~PTE_C;
+      flags = flags | PTE_W;
+
+      if((mem = kalloc()) == 0) {
+        uvmunmap(pagetable, 0, 1, 1);
+        exit(-1); // Kanskje bytt ut med return -1
+      }
+
+      //increment_page_count((uint64)mem);
+      
+      memmove(mem, (char*)physical_address, PGSIZE);
+
+      // Må unmappe den gamle page-en
+      uvmunmap(pagetable, PGROUNDDOWN(va0), 1, 1); // Burde jeg ha round up eller round down?
+
+      //printf("Mappages virtuell adresse usertrap: %d\n", virtual_address);
+      if(mappages(pagetable, PGROUNDDOWN(va0), PGSIZE, (uint64)mem, flags) != 0){
+        kfree(mem);
+        //uvmunmap(pt, 0, 1, 1);
+        
+        exit(-1); // Kanskje bytt ut med return -1
+        // Eller burde jeg ha goto err som i gamle uvmcopy?
+      }
+
+      // funksjonskall for å dekrementere counten til den gamle page-en
+      // utføres kun dersom mappingen var vellykket
+
+      decrement_page_count(physical_address);
+
+    } */
+
+    // ----------------------
+
+
+
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;

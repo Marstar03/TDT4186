@@ -384,6 +384,7 @@ int fork(void)
     {
         return -1;
     }
+    printf("Hallo\n");
 
     // Copy user memory from parent to child.
     if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0)

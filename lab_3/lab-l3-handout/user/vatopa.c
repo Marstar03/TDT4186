@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
 
     } else if(argc > 1) {
         uint64 virtual_address = atoi(argv[1]);
-        uint64 physical_address = va2pa(virtual_address, -1);
+        uint64 physical_address = va2pa(virtual_address, 0);
         //printf("%p\n", physical_address);
         printf("0x%x\n", physical_address);
 

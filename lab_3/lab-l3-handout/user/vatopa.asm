@@ -32,8 +32,8 @@ int main(int argc, char *argv[])
   1a:	6588                	ld	a0,8(a1)
   1c:	00000097          	auipc	ra,0x0
   20:	206080e7          	jalr	518(ra) # 222 <atoi>
-        uint64 physical_address = va2pa(virtual_address, -1);
-  24:	55fd                	li	a1,-1
+        uint64 physical_address = va2pa(virtual_address, 0);
+  24:	4581                	li	a1,0
   26:	00000097          	auipc	ra,0x0
   2a:	3ae080e7          	jalr	942(ra) # 3d4 <va2pa>
   2e:	85aa                	mv	a1,a0
